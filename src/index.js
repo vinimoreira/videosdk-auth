@@ -16,11 +16,18 @@ dotenv.config()
 const app = express()
 const port = process.env.PORT || 4000
 
-app.use(express.json(), cors())
-app.options('*', cors())
+// Configure CORS with specific options
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*', // Set specific origins or '*' for all origins
+  methods: ['GET', 'POST', 'OPTIONS'], // Allow necessary methods
+  allowedHeaders: ['Content-Type', 'Authorization'], // Allow necessary headers
+  credentials: true // Include credentials if needed
+}
 
-// Validations should match Zoom Video SDK's documentation:
-// https://developers.zoom.us/docs/video-sdk/auth/#payload
+app.use(cors(corsOptions)) // Apply the CORS middleware with the defined options
+app.use(express.json())
+app.options('*', cors(corsOptions))
+
 const validator = {
   role: [isRequired, inNumberArray([0, 1])],
   sessionName: [isRequired, isLengthLessThan(200)],
