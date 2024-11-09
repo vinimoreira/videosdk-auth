@@ -95,4 +95,69 @@ app.post('/', (req, res) => {
   return res.json({ signature: sdkJWT })
 })
 
+app.post('/', (req, res) => {
+  const requestBody = coerceRequestBody(req.body)
+  const validationErrors = validateRequest(requestBody, validator)
+
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ errors: validationErrors })
+  }
+
+  const {
+    role,
+    sessionName,
+    expirationSeconds,
+    userIdentity,
+    sessionKey,
+    geoRegions,
+    cloudRecordingOption,
+    cloudRecordingElection,
+    audioCompatibleMode
+  } = requestBody
+
+  const iat = Math.floor(Date.now() / 1000)
+  const exp = expirationSeconds ? iat + expirationSeconds : iat + 60 * 60 * 2
+  const oHeader = { alg: 'HS256', typ: 'JWT' }
+
+  const oPayload = {
+    app_key: process.env.ZOOM_VIDEO_SDK_KEY,
+    role_type: role,
+    tpc: sessionName,
+    version: 1,
+    iat,
+    exp,
+    user_identity: userIdentity,
+    session_key: sessionKey,
+    geo_regions: joinGeoRegions(geoRegions),
+    cloud_recording_option: cloudRecordingOption,
+    cloud_recording_election: cloudRecordingElection,
+    audio_compatible_mode: audioCompatibleMode
+  }
+
+  const sHeader = JSON.stringify(oHeader)
+  const sPayload = JSON.stringify(oPayload)
+  const sdkJWT = KJUR.jws.JWS.sign('HS256', sHeader, sPayload, process.env.ZOOM_VIDEO_SDK_SECRET)
+  return res.json({ signature: sdkJWT })
+})
+
+app.post('/webhook', (request, response) => {
+  const crypto = require('crypto')
+
+  // Webhook request event type is a challenge-response check
+  if (request.body.event === 'endpoint.url_validation') {
+    const hashForValidate = crypto
+      .createHmac('sha256', ZOOM_WEBHOOK_SECRET_TOKEN)
+      .update(request.body.payload.plainToken)
+      .digest('hex')
+
+    response.status(200)
+    response.json({
+      plainToken: request.body.payload.plainToken,
+      encryptedToken: hashForValidate
+    })
+  }
+
+  return response
+})
+
 app.listen(port, () => console.log(`Zoom Video SDK Auth Endpoint Sample Node.js, listening on port ${port}!`))
